@@ -1,0 +1,5 @@
+{
+  "name": "Pantry Chef AI",
+  "description": "Generate delicious recipes based on the ingredients you have at home. Never wonder what to cook again!",
+  "requestFramePermissions": []
+}
