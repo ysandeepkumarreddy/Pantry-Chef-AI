@@ -4,10 +4,9 @@ import { DarkModeToggle } from './DarkModeToggle';
 interface HeaderProps {
     onToggleDarkMode: () => void;
     isDarkMode: boolean;
-    onShowHowItWorks: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onToggleDarkMode, isDarkMode, onShowHowItWorks }) => {
+export const Header: React.FC<HeaderProps> = ({ onToggleDarkMode, isDarkMode }) => {
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -31,13 +30,6 @@ export const Header: React.FC<HeaderProps> = ({ onToggleDarkMode, isDarkMode, on
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pantry Chef AI</h1>
             </div>
             <div className="flex items-center space-x-4">
-                 <button 
-                    onClick={onShowHowItWorks}
-                    className="text-sm font-medium text-gray-600 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 rounded-md"
-                    aria-label="How it works"
-                >
-                    How it Works
-                </button>
                 <DarkModeToggle isDarkMode={isDarkMode} onToggle={onToggleDarkMode} />
             </div>
         </div>

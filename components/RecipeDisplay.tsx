@@ -1,13 +1,14 @@
 import React from 'react';
 import type { Recipe } from '../types';
+import { ShareRecipe } from './ShareRecipe';
 
 interface RecipeDisplayProps {
   recipe: Recipe;
   imageUrl: string | null;
   instructionImages: (string | null)[];
+  isShareable?: boolean;
 }
 
-// Fix: Replaced JSX.Element with React.ReactElement to resolve "Cannot find namespace 'JSX'" error.
 const InfoPill: React.FC<{ label: string; value: string; icon: React.ReactElement }> = ({ label, value, icon }) => (
     <div className="flex flex-col items-center justify-center bg-indigo-50 dark:bg-gray-700 p-3 rounded-lg text-center">
         <div className="flex items-center text-indigo-600 dark:text-indigo-400 mb-1">
@@ -18,7 +19,7 @@ const InfoPill: React.FC<{ label: string; value: string; icon: React.ReactElemen
     </div>
 );
 
-export const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, imageUrl, instructionImages }) => {
+export const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, imageUrl, instructionImages, isShareable = false }) => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8 animate-fade-in">
       {imageUrl && (
@@ -33,6 +34,8 @@ export const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, imageUrl, 
       <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white text-center mb-2">{recipe.recipeName}</h2>
       <p className="text-center text-gray-600 dark:text-gray-400 mb-6">{recipe.description}</p>
       
+      {isShareable && <ShareRecipe recipe={recipe} imageUrl={imageUrl} instructionImages={instructionImages} />}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8 border-t border-b border-gray-200 dark:border-gray-700 py-6">
         <InfoPill label="Prep Time" value={recipe.prepTime} icon={<ClockIcon />} />
         <InfoPill label="Cook Time" value={recipe.cookTime} icon={<FlameIcon />} />

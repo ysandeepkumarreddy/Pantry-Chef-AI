@@ -13,3 +13,9 @@ export interface SavedIngredients {
   timestamp: number;
   count: number;
 }
+
+export interface SharedRecipePayload {
+  recipe: Recipe;
+  imageUrl: string | null;
+  instructionImages: (string | null)[];
+}

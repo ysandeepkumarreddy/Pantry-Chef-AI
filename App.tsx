@@ -5,10 +5,9 @@ import { RecipeDisplay } from './components/RecipeDisplay';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { StorageControls } from './components/StorageControls';
 import { ConfirmationModal } from './components/ConfirmationModal';
-import { HowItWorksModal } from './components/HowItWorksModal';
 import { generateRecipe, generateRecipeImage, generateInstructionImages } from './services/geminiService';
 import { formatTimestamp } from './utils/dateFormatter';
-import type { Recipe, SavedIngredients } from './types';
+import type { Recipe, SavedIngredients, SharedRecipePayload } from './types';
 
 const App: React.FC = () => {
   const [ingredients, setIngredients] = useState<string[]>(['3 eggs', '1 cup flour', '1/2 cup milk']);
@@ -18,6 +17,10 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
+
+  // App mode
+  const [isViewMode, setIsViewMode] = useState<boolean>(false);
 
   // Dark Mode State
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -35,11 +38,31 @@ const App: React.FC = () => {
   // Modal States
   const [isLoadModalOpen, setLoadModalOpen] = useState<boolean>(false);
   const [isClearModalOpen, setClearModalOpen] = useState<boolean>(false);
-  const [isHowItWorksModalOpen, setHowItWorksModalOpen] = useState<boolean>(false);
   
   // UX State
   const [highlightedIndices, setHighlightedIndices] = useState<Set<number>>(new Set());
 
+  // Check for shared recipe in URL on initial load
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedRecipeData = urlParams.get('recipe');
+
+    if (sharedRecipeData) {
+      try {
+        const decodedData = atob(sharedRecipeData);
+        const parsedPayload: SharedRecipePayload = JSON.parse(decodedData);
+        setRecipe(parsedPayload.recipe);
+        setRecipeImage(parsedPayload.imageUrl);
+        setInstructionImages(parsedPayload.instructionImages);
+        setIsViewMode(true);
+        // Clean the URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.error("Failed to parse shared recipe data:", e);
+        setError("The shared recipe link appears to be invalid.");
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -67,8 +90,11 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    checkSavedIngredients();
-  }, [checkSavedIngredients]);
+    // Don't check for saved ingredients in view mode
+    if (!isViewMode) {
+      checkSavedIngredients();
+    }
+  }, [checkSavedIngredients, isViewMode]);
 
   const handleAddIngredient = (ingredient: string) => {
     if (ingredient.trim() !== '' && !ingredients.includes(ingredient.trim())) {
@@ -134,6 +160,7 @@ const App: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
+    setNotification(null);
     setRecipe(null);
     setRecipeImage(null);
     setInstructionImages([]);
@@ -142,7 +169,6 @@ const App: React.FC = () => {
       setLoadingMessage('Crafting your recipe...');
       const generatedRecipe = await generateRecipe(ingredients);
 
-      // Now fetch all images before setting state and finishing loading
       setLoadingMessage('Visualizing your masterpiece...');
       const mainImagePromise = generateRecipeImage(generatedRecipe.recipeName, generatedRecipe.description);
       const instructionImagesPromise = generateInstructionImages(generatedRecipe.recipeName, generatedRecipe.instructions);
@@ -171,17 +197,15 @@ const App: React.FC = () => {
       } else {
         console.error("Instruction images generation failed:", instructionImagesResult.reason);
         imagesFailed = true;
-        // Fill with nulls so the UI doesn't crash
         finalInstructionImages = new Array(generatedRecipe.instructions.length).fill(null);
       }
 
-      // Now set all state at once
       setRecipe(generatedRecipe);
       setRecipeImage(finalRecipeImage);
       setInstructionImages(finalInstructionImages);
 
       if (imagesFailed) {
-        setError("Recipe is ready! Some images couldn't be generated.");
+        setNotification("Heads up! Some images couldn't be generated, but your recipe is ready.");
       }
 
     } catch (err) {
@@ -196,78 +220,89 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans">
-      <Header onToggleDarkMode={toggleDarkMode} isDarkMode={isDarkMode} onShowHowItWorks={() => setHowItWorksModalOpen(true)} />
+      <Header onToggleDarkMode={toggleDarkMode} isDarkMode={isDarkMode} />
       <main className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8 space-y-8">
-          
-          <div className="text-center">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">What's in your pantry?</h2>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">Enter your ingredients and let AI create a recipe for you.</p>
-          </div>
-
-          <IngredientInput
-            ingredients={ingredients}
-            onAddIngredient={handleAddIngredient}
-            onRemoveIngredient={handleRemoveIngredient}
-            highlightedIndices={highlightedIndices}
-          />
-
-          <StorageControls 
-            onSave={handleSaveIngredients}
-            onLoad={handleLoadIngredients}
-            onClear={handleClearIngredients}
-            hasSavedData={!!savedIngredientsData}
-            statusMessage={statusMessage}
-          />
-
-          <div className="text-center">
-            <button
-              onClick={handleGenerateRecipe}
-              disabled={isLoading || ingredients.length === 0}
-              className="w-full sm:w-auto bg-indigo-600 text-white font-bold py-3 px-8 rounded-full hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50 transition-all duration-300 ease-in-out disabled:bg-gray-400 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none dark:disabled:bg-gray-600"
-            >
-              {isLoading ? loadingMessage : 'Generate Recipe'}
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-10">
-          {isLoading && <LoadingSpinner />}
-          {error && (
-             <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-600 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg relative text-center" role="alert">
-                <strong className="font-bold">Oops! </strong>
-                <span className="block sm:inline">{error}</span>
+        {isViewMode ? (
+            <div className="mt-10">
+                 {recipe && <RecipeDisplay recipe={recipe} imageUrl={recipeImage} instructionImages={instructionImages} isShareable={false} />}
             </div>
-          )}
-          {recipe && !isLoading && <RecipeDisplay recipe={recipe} imageUrl={recipeImage} instructionImages={instructionImages} />}
-           {!recipe && !isLoading && !error && (
-            <div className="text-center text-gray-500 dark:text-gray-400 py-10">
-              <p>Your generated recipe will appear here.</p>
+        ) : (
+        <>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8 space-y-8">
+            
+            <div className="text-center">
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">What's in your pantry?</h2>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Enter your ingredients and let AI create a recipe for you.</p>
             </div>
-          )}
-        </div>
+
+            <IngredientInput
+                ingredients={ingredients}
+                onAddIngredient={handleAddIngredient}
+                onRemoveIngredient={handleRemoveIngredient}
+                highlightedIndices={highlightedIndices}
+            />
+
+            <StorageControls 
+                onSave={handleSaveIngredients}
+                onLoad={handleLoadIngredients}
+                onClear={handleClearIngredients}
+                hasSavedData={!!savedIngredientsData}
+                statusMessage={statusMessage}
+            />
+
+            <div className="text-center">
+                <button
+                onClick={handleGenerateRecipe}
+                disabled={isLoading || ingredients.length === 0}
+                className="w-full sm:w-auto bg-indigo-600 text-white font-bold py-3 px-8 rounded-full hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50 transition-all duration-300 ease-in-out disabled:bg-gray-400 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none dark:disabled:bg-gray-600"
+                >
+                {isLoading ? loadingMessage : 'Generate Recipe'}
+                </button>
+            </div>
+            </div>
+
+            <div className="mt-10">
+            {isLoading && <LoadingSpinner />}
+            {error && (
+                <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-600 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg relative text-center mb-6" role="alert">
+                    <strong className="font-bold">Oops! </strong>
+                    <span className="block sm:inline">{error}</span>
+                </div>
+            )}
+            {notification && !isLoading && (
+                <div className="bg-yellow-100 dark:bg-yellow-800 border border-yellow-400 dark:border-yellow-600 text-yellow-800 dark:text-yellow-200 px-4 py-3 rounded-lg relative text-center mb-6" role="status">
+                   <span className="block sm:inline">{notification}</span>
+                </div>
+            )}
+            {recipe && !isLoading && <RecipeDisplay recipe={recipe} imageUrl={recipeImage} instructionImages={instructionImages} isShareable={!isViewMode} />}
+            {!recipe && !isLoading && !error && (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-10">
+                <p>Your generated recipe will appear here.</p>
+                </div>
+            )}
+            </div>
+        </>
+        )}
       </main>
       
-      <ConfirmationModal
-        isOpen={isLoadModalOpen}
-        onConfirm={performLoad}
-        onCancel={() => setLoadModalOpen(false)}
-        title="Load Saved Ingredients?"
-        message="This will replace your current ingredient list. Are you sure you want to proceed?"
-      />
-      
-      <ConfirmationModal
-        isOpen={isClearModalOpen}
-        onConfirm={performClear}
-        onCancel={() => setClearModalOpen(false)}
-        title="Clear Saved Ingredients?"
-        message="This will permanently delete your saved ingredient list. This action cannot be undone."
-      />
+      {!isViewMode && <>
+        <ConfirmationModal
+            isOpen={isLoadModalOpen}
+            onConfirm={performLoad}
+            onCancel={() => setLoadModalOpen(false)}
+            title="Load Saved Ingredients?"
+            message="This will replace your current ingredient list. Are you sure you want to proceed?"
+        />
+        
+        <ConfirmationModal
+            isOpen={isClearModalOpen}
+            onConfirm={performClear}
+            onCancel={() => setClearModalOpen(false)}
+            title="Clear Saved Ingredients?"
+            message="This will permanently delete your saved ingredient list. This action cannot be undone."
+        />
+      </>}
 
-      <HowItWorksModal
-        isOpen={isHowItWorksModalOpen}
-        onClose={() => setHowItWorksModalOpen(false)}
-      />
     </div>
   );
 };
